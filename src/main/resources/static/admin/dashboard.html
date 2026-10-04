@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel de Administración - Parqueadero</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; margin: 0; }
+        header { background-color: #1f2937; color: white; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+        main { max-width: 1200px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 1.5rem; }
+
+        .grid-tablas { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+
+        table { width: 100%; border-collapse: collapse; background: white; font-size: 0.9rem; }
+        th, td { padding: 0.6rem; border-bottom: 1px solid #e5e7eb; text-align: left; }
+        th { background-color: #f9fafb; }
+
+        .badge { padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+        .badge-vacio { background: #d1fae5; color: #065f46; }
+        .badge-ocupado { background: #fee2e2; color: #991b1b; }
+        .badge-reservado { background: #fef3c7; color: #92400e; }
+
+        .btn-act { border: none; padding: 0.3rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: bold; cursor: pointer; color: white; }
+        .btn-ocupar { background-color: #ef4444; }
+        .btn-liberar { background-color: #10b981; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h2>🛡️ Panel de Administración</h2>
+    <button onclick="cerrarSesion()" style="background: #dc2626; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">Cerrar Sesión</button>
+</header>
+
+<main>
+    <div class="card">
+        <h3>Calculadora de Cobro</h3>
+        <input type="number" id="horas" placeholder="Horas de parqueo">
+        <button onclick="calcular()" style="padding: 0.5rem 1rem; background: #4f46e5; color: white; border: none; border-radius: 4px; cursor: pointer;">Calcular</button>
+        <span id="total" style="font-weight: bold; margin-left: 1rem; color: #4f46e5;"></span>
+    </div>
+
+    <div class="grid-tablas">
+        <!-- Tabla Carros -->
+        <div class="card">
+            <h3>🚘 Carros (Puestos 1 - 30)</h3>
+            <div style="max-height: 500px; overflow-y: auto;">
+                <table>
+                    <thead>
+                    <tr><th>ID</th><th>Estado</th><th>Usuario</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody id="tabla-carros"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Tabla Motos -->
+        <div class="card">
+            <h3>🏍️ Motos (Puestos 31 - 40)</h3>
+            <div style="max-height: 500px; overflow-y: auto;">
+                <table>
+                    <thead>
+                    <tr><th>ID</th><th>Estado</th><th>Usuario</th><th>Acciones</th></tr>
+                    </thead>
+                    <tbody id="tabla-motos"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    if (!sessionStorage.getItem('adminToken')) {
+        alert("Acceso denegado.");
+        window.location.href = "/index.html";
+    }
+
+    const API_URL = "http://localhost:8080/api/parqueadero";
+
+    function cerrarSesion() {
+        sessionStorage.removeItem('adminToken');
+        window.location.href = "/index.html";
+    }
+
+    async function cargar() {
+        const res = await fetch(`${API_URL}/espacios`);
+        const datos = await res.json();
+
+        const tbodyCarros = document.getElementById('tabla-carros');
+        const tbodyMotos = document.getElementById('tabla-motos');
+
+        tbodyCarros.innerHTML = '';
+        tbodyMotos.innerHTML = '';
+
+        datos.forEach(e => {
+            let badgeClass = 'badge-vacio';
+            if (e.estado === 'OCUPADO') badgeClass = 'badge-ocupado';
+            if (e.estado === 'RESERVADO') badgeClass = 'badge-reservado';
+
+            const fila = `
+                    <tr>
+                        <td><b>#${e.id}</b></td>
+                        <td><span class="badge ${badgeClass}">${e.estado}</span></td>
+                        <td>${e.usuario || '-'}</td>
+                        <td>
+                            <button onclick="cambiar(${e.id}, 'OCUPADO')" class="btn-act btn-ocupar">Ocupar</button>
+                            <button onclick="cambiar(${e.id}, 'VACIO')" class="btn-act btn-liberar">Liberar</button>
+                        </td>
+                    </tr>
+                `;
+
+            if (e.tipo === 'CARRO') {
+                tbodyCarros.innerHTML += fila;
+            } else if (e.tipo === 'MOTO') {
+                tbodyMotos.innerHTML += fila;
+            }
+        });
+    }
+
+    async function cambiar(id, estado) {
+        let usuario = "";
+        if (estado === 'OCUPADO') usuario = prompt("Ingrese el nombre/placa del vehículo:");
+        await fetch(`${API_URL}/cambiar/${id}?estado=${estado}&usuario=${encodeURIComponent(usuario || '')}`, { method: 'PUT' });
+        cargar();
+    }
+
+    async function calcular() {
+        const h = document.getElementById('horas').value;
+        if(!h) return;
+        const res = await fetch(`${API_URL}/cobrar?horas=${h}`);
+        const total = await res.json();
+        document.getElementById('total').innerText = `Total: $${total}`;
+    }
+
+    cargar();
+</script>
+</body>
+</html>

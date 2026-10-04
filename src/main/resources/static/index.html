@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Parqueadero - Vista Cliente</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f3f4f6; margin: 0; }
+        header { background-color: #4f46e5; color: white; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        main { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; }
+        .card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e5e7eb; margin-bottom: 2rem; }
+        .btn { background-color: #4f46e5; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-admin { background-color: #1f2937; }
+
+        /* Grid para dividir en 2 columnas */
+        .grid-dos-columnas { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 1rem; }
+        .columna-tipo { background: #f9fafb; padding: 1rem; border-radius: 8px; border: 1px solid #e5e7eb; }
+        .columna-tipo h4 { margin-top: 0; color: #374151; }
+
+        .field { margin-bottom: 1rem; }
+        .field label { display: block; font-size: 0.85rem; font-weight: bold; color: #374151; margin-bottom: 0.3rem; }
+        .field input, .field select { width: 100%; padding: 0.6rem; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; }
+
+        /* Modal */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); justify-content: center; align-items: center; z-index: 1000; }
+        .modal-content { background: white; padding: 2rem; border-radius: 8px; width: 320px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); }
+        .error-msg { color: #dc2626; font-size: 0.85rem; display: none; margin-bottom: 1rem; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h2 style="margin: 0;">🚗 Parqueadero (Vista Cliente)</h2>
+    <button onclick="abrirModal()" class="btn btn-admin">Acceso Administrador 🔒</button>
+</header>
+
+<main>
+    <div class="card">
+        <h3>📌 Reservar un Espacio</h3>
+        <div class="field">
+            <label>Tu Nombre / Placa:</label>
+            <input type="text" id="usuario" placeholder="Ej: Oscar / ABC-123" required>
+        </div>
+
+        <div class="grid-dos-columnas">
+            <!-- Columna Carros -->
+            <div class="columna-tipo">
+                <h4>🚘 Carros (30 Cupos)</h4>
+                <div class="field">
+                    <label>Celda Libre:</label>
+                    <select id="celda-carro">
+                        <option value="">Cargando carros...</option>
+                    </select>
+                </div>
+                <button onclick="reservar('carro')" class="btn" style="width: 100%;">Reservar Carro</button>
+            </div>
+
+            <!-- Columna Motos -->
+            <div class="columna-tipo">
+                <h4>🏍️ Motos (10 Cupos)</h4>
+                <div class="field">
+                    <label>Celda Libre:</label>
+                    <select id="celda-moto">
+                        <option value="">Cargando motos...</option>
+                    </select>
+                </div>
+                <button onclick="reservar('moto')" class="btn" style="width: 100%; background-color: #059669;">Reservar Moto</button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Modal Login -->
+<div id="modal-login" class="modal">
+    <div class="modal-content">
+        <h3 style="margin-top: 0;">Iniciar Sesión Admin</h3>
+        <div id="login-error" class="error-msg">Credenciales incorrectas</div>
+        <div class="field">
+            <label>Usuario</label>
+            <input type="text" id="admin-user">
+        </div>
+        <div class="field">
+            <label>Contraseña</label>
+            <input type="password" id="admin-pass">
+        </div>
+        <button onclick="iniciarSesion()" class="btn" style="width: 100%;">Ingresar</button>
+        <button onclick="cerrarModal()" class="btn" style="width: 100%; background: #6b7280; margin-top: 0.5rem;">Cancelar</button>
+    </div>
+</div>
+
+<script>
+    const API_URL = "http://localhost:8080/api";
+
+    function abrirModal() { document.getElementById('modal-login').style.display = 'flex'; }
+    function cerrarModal() { document.getElementById('modal-login').style.display = 'none'; }
+
+    async function iniciarSesion() {
+        const usuario = document.getElementById('admin-user').value.trim();
+        const password = document.getElementById('admin-pass').value.trim();
+
+        try {
+            const res = await fetch(`${API_URL}/auth/login`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ usuario, password })
+            });
+
+            const data = await res.json();
+
+            if (data.autenticado) {
+                sessionStorage.setItem('adminToken', data.token);
+                window.location.href = "/admin/dashboard.html";
+            } else {
+                document.getElementById('login-error').style.display = 'block';
+            }
+        } catch (err) {
+            alert("Error de conexión con el servidor");
+        }
+    }
+
+    async function cargarCeldas() {
+        try {
+            const res = await fetch(`${API_URL}/parqueadero/espacios`);
+            const espacios = await res.json();
+
+            const selectCarro = document.getElementById('celda-carro');
+            const selectMoto = document.getElementById('celda-moto');
+
+            selectCarro.innerHTML = '<option value="">-- Selecciona Celda Carro --</option>';
+            selectMoto.innerHTML = '<option value="">-- Selecciona Celda Moto --</option>';
+
+            let carrosLibres = 0, motosLibres = 0;
+
+            espacios.forEach(e => {
+                if (e.estado && e.estado.toUpperCase() === 'VACIO') {
+                    if (e.tipo === 'CARRO') {
+                        selectCarro.innerHTML += `<option value="${e.id}">Celda #${e.id}</option>`;
+                        carrosLibres++;
+                    } else if (e.tipo === 'MOTO') {
+                        selectMoto.innerHTML += `<option value="${e.id}">Celda #${e.id}</option>`;
+                        motosLibres++;
+                    }
+                }
+            });
+
+            if (carrosLibres === 0) selectCarro.innerHTML = '<option value="">Sin carros disponibles</option>';
+            if (motosLibres === 0) selectMoto.innerHTML = '<option value="">Sin motos disponibles</option>';
+
+        } catch (err) {
+            console.error("Error al cargar celdas:", err);
+        }
+    }
+
+    async function reservar(tipo) {
+        const usuario = document.getElementById('usuario').value.trim();
+        if (!usuario) return alert("Por favor ingresa tu Nombre o Placa primero.");
+
+        const selectId = tipo === 'carro' ? 'celda-carro' : 'celda-moto';
+        const id = document.getElementById(selectId).value;
+
+        if (!id) return alert("Selecciona una celda disponible.");
+
+        await fetch(`${API_URL}/parqueadero/cambiar/${id}?estado=RESERVADO&usuario=${encodeURIComponent(usuario)}`, { method: 'PUT' });
+        alert("¡Reserva realizada con éxito!");
+        document.getElementById('usuario').value = '';
+        cargarCeldas();
+    }
+
+    cargarCeldas();
+</script>
+</body>
+</html>
